@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mount.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -136,6 +137,69 @@ static bool trash_fast(const char *path, const struct stat *sb) {
     return renamex_np(path, dst, RENAME_EXCL) == 0;
 }
 
+/*
+ * Refuse to trash the Trash itself (~/.Trash, any volume's .Trashes) or
+ * anything already inside one: the former is self-destructive, the latter
+ * a silent no-op. For symlinks, only the containing directory is resolved,
+ * so a link pointing INTO the Trash can still be trashed normally.
+ */
+static bool check_trash(const char *path, const struct stat *sb) {
+    char resolved[PATH_MAX];
+    if (S_ISLNK(sb->st_mode)) {
+        char dbuf[PATH_MAX], bbuf[PATH_MAX], parent[PATH_MAX];
+        strlcpy(dbuf, path, sizeof(dbuf));
+        strlcpy(bbuf, path, sizeof(bbuf));
+        if (realpath(dirname(dbuf), parent) == NULL ||
+            snprintf(resolved, sizeof(resolved), "%s/%s", parent,
+                     basename(bbuf)) >= (int)sizeof(resolved))
+            return false;
+    } else if (realpath(path, resolved) == NULL) {
+        return false;
+    }
+
+    bool is_root = false, inside = false;
+
+    size_t tl = strlen(trash_dir);
+    if (tl > 0 && strncmp(resolved, trash_dir, tl) == 0) {
+        if (resolved[tl] == '\0')
+            is_root = true;
+        else if (resolved[tl] == '/')
+            inside = true;
+    }
+
+    if (!is_root && !inside) {
+        /* <mount>/.Trashes[/uid[/...]] on other volumes. statfs confirms
+         * the prefix really is a mount point, so a directory that merely
+         * happens to be named .Trashes elsewhere is unaffected. */
+        const char *t = strstr(resolved, "/.Trashes");
+        struct statfs fs;
+        if (t != NULL && (t[9] == '\0' || t[9] == '/') &&
+            statfs(resolved, &fs) == 0) {
+            size_t plen = (size_t)(t - resolved);
+            if ((plen == 0 && strcmp(fs.f_mntonname, "/") == 0) ||
+                (plen == strlen(fs.f_mntonname) &&
+                 strncmp(resolved, fs.f_mntonname, plen) == 0)) {
+                const char *rest = t + strlen("/.Trashes");
+                if (*rest == '\0' || strchr(rest + 1, '/') == NULL)
+                    is_root = true; /* .Trashes itself or a uid dir */
+                else
+                    inside = true;
+            }
+        }
+    }
+
+    if (is_root)
+        fprintf(stderr, "rm: %s: refusing to remove the Trash\n", path);
+    else if (inside)
+        fprintf(stderr,
+                "rm: %s: already in the Trash "
+                "(use /bin/rm to delete permanently)\n",
+                path);
+    if (is_root || inside)
+        eval = 1;
+    return is_root || inside;
+}
+
 static void trash_one(const char *path, bool stdin_tty) {
     struct stat sb;
 
@@ -147,6 +211,9 @@ static void trash_one(const char *path, bool stdin_tty) {
         }
         return;
     }
+
+    if (check_trash(path, &sb))
+        return;
 
     if (S_ISDIR(sb.st_mode) && !rflag) {
         if (!dflag) {

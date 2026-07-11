@@ -53,6 +53,12 @@ prompts, and exit codes:
 Also mirrored: refusal to remove `/`, `.`, `..`; the write-protected-file
 override prompt on interactive stdin; exit status 1 if any operand fails.
 
+Beyond rm, it refuses to remove the Trash itself (`~/.Trash`, any volume's
+`.Trashes`) and anything already inside a Trash, since "trashing" those is
+self-destructive or a silent no-op. Use `/bin/rm` (or empty the Trash) to
+delete such items permanently. A directory merely named `.Trashes` outside
+a volume root is not affected.
+
 ## Speed
 
 Two paths, per operand:

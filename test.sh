@@ -111,6 +111,34 @@ check "\".\" message"                grep -q 'may not be removed' err.out
 "$RMT" -rf / 2>err.out; rc=$?
 check "refuses \"/\""                test $rc -eq 1
 
+echo "== trash protection =="
+"$RMT" -rf "$HOME/.Trash" 2>err.out; rc=$?
+check "refuses ~/.Trash"             test $rc -eq 1
+check "~/.Trash message"             grep -q "refusing to remove the Trash" err.out
+check "~/.Trash still exists"        test -d "$HOME/.Trash"
+
+inmark="rmt-intrash-$$.txt"
+touch "$inmark" && "$RMT" "$inmark" </dev/null
+"$RMT" "$HOME/.Trash/$inmark" 2>err.out; rc=$?
+check "refuses file inside Trash"    test $rc -eq 1
+check "inside-Trash message"         grep -q "already in the Trash" err.out
+check "file kept in Trash"           test -e "$HOME/.Trash/$inmark"
+
+ln -s "$HOME/.Trash" trashlink
+"$RMT" trashlink </dev/null; rc=$?
+check "symlink TO Trash is trashed"  test ! -L trashlink -a $rc -eq 0
+check "Trash survives symlink trash" test -d "$HOME/.Trash"
+
+mkdir -p fake/.Trashes && touch fake/.Trashes/x
+"$RMT" -rf fake/.Trashes </dev/null; rc=$?
+check "non-mount .Trashes trashable" test ! -e fake/.Trashes -a $rc -eq 0
+"$RMT" -rf fake
+
+if [ -d /.Trashes ]; then
+  "$RMT" -rf /.Trashes 2>/dev/null; rc=$?
+  check "volume /.Trashes not removed" test $rc -eq 1 -a -d /.Trashes
+fi
+
 echo "== symlinks =="
 touch target.txt && ln -s target.txt link
 "$RMT" link </dev/null
