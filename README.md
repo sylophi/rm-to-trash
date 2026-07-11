@@ -1,4 +1,6 @@
-# rmt: rm, but to the Trash
+# rm-to-trash
+
+`rm`, but to the Trash.
 
 A drop-in replacement for `rm(1)` on macOS that moves files to the Trash
 instead of permanently unlinking them. Built so that an agent (or you)
@@ -71,7 +73,7 @@ Two paths, per operand:
    system `trash` command. It uniquifies names and uses per-volume
    `.Trashes`.
 
-Measured on an M-series laptop, 200 small files:
+Measured on an M3 Pro MacBook Pro, 200 small files:
 
 | | 200 files (1 invocation) | 1 file per invocation |
 |---|---|---|
