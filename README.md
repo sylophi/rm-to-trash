@@ -11,28 +11,33 @@ Single Objective-C file, no dependencies, ~50 KB binary.
 ## Build & install
 
 ```sh
-./install.sh    # builds and installs to ~/.local/bin (RMT_INSTALL_DIR=... to override)
+./install.sh                 # builds, installs rmt to ~/.local/bin, symlinks rm -> rmt
+./install.sh --no-symlink    # same, but skip the rm symlink
 ```
 
-Or manually:
+`RMT_INSTALL_DIR=...` overrides the destination. Or manually:
 
 ```sh
 make            # native arch
 make universal  # fat binary (arm64 + x86_64)
 make install    # installs to /usr/local/bin/rmt (PREFIX=... to override)
-make test       # 41-case test suite
+make test       # test suite
 ```
 
-Then alias it in `~/.zshrc`:
+The `rm -> rmt` symlink covers every shell that resolves `rm` through
+`PATH`: interactive, non-interactive, agents like Claude Code, scripts,
+`make`. No alias is needed. For the symlink to take effect, the install
+dir must come **before** `/bin` in `PATH`, so make sure your shell
+profile *prepends* it (in `~/.zshrc`, and `~/.bashrc` if you use bash):
 
 ```sh
-alias rm='rmt'
+export PATH="$HOME/.local/bin:$PATH"   # prepend: must beat /bin
 ```
 
-To really delete something, bypass the alias with `\rm`, `command rm`,
-or `/bin/rm`. Scripts that invoke `rm` via a full path or non-interactive
-shell are unaffected by the alias. If you want those covered too, put a
-`rm` symlink to `rmt` on `PATH` ahead of `/bin` instead of using an alias.
+`install.sh` warns if `rm` still resolves to `/bin/rm` after installing.
+To really delete something, use `/bin/rm` (note that `\rm` and
+`command rm` only bypass aliases, not the symlink). To undo the symlink
+later, just delete `~/.local/bin/rm`.
 
 ## Compatibility
 
